@@ -1,0 +1,251 @@
+name: Workload CI
+
+on:
+  push:
+    branches: [ main, jonewworkload ]
+  pull_request:
+    branches: [ main, jonewworkload ]
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      workloads: ${{ steps.set-matrix.outputs.workloads }}
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Find workloads
+        id: set-matrix
+        run: |
+          # Find directories that contain a package.json file
+          WORKLOADS=$(find workload -mindepth 1 -maxdepth 1 -type d -not -path "*/\.*" | while read dir; do
+            if [ -f "$dir/package.json" ]; then
+              echo "$dir"
+            fi
+          done | jq -R -s -c 'split("\n") | map(select(length > 0)) | map(split("/") | .[1])')
+          echo "workloads=$WORKLOADS" >> $GITHUB_OUTPUT
+          echo "Found workloads: $WORKLOADS"
+  
+  test:
+    needs: discover
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main'
+    strategy:
+      matrix:
+        workload: ${{ fromJson(needs.discover.outputs.workloads) }}
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: 'workload/${{ matrix.workload }}/.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: 'workload/${{ matrix.workload }}/package.json'
+      
+      - name: Install dependencies
+        run: npm install
+        working-directory: workload/${{ matrix.workload }}
+      
+      - name: Run tests
+        run: npm test
+        working-directory: workload/${{ matrix.workload }}
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          directory: workload/${{ matrix.workload }}/coverage
+          flags: ${{ matrix.workload }}
+        if: success()
+
+  docker_build:
+    needs: [discover, test]
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workload: ${{ fromJson(needs.discover.outputs.workloads) }}
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build
+        uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: workload/${{ matrix.workload }}
+          load: true
+          push: false
+          tags: user/app:latest
+
+          
+      - run: docker run -d --name test-container -e PORT=8080 -p 8080:8080 ${{ steps.build.outputs.imageid}}
+      - run: sleep 5
+      - run: curl -s --retry 5 --retry-connrefused http://localhost:8080/
+      - run: docker stop test-container
+
+  acr_push:
+    name: Push to Azure Container Registry
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/jonewworkload'
+    permissions:
+      contents: read
+      packages: write
+    needs: [discover]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workload: ${{ fromJson(needs.discover.outputs.workloads) }}
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ vars.ACR_NAME }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+        
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.ACR_NAME }}/${{ github.repository_owner }}/workload-${{ matrix.workload }}
+          tags: |
+            type=sha
+            
+      - name: Push
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64
+          context: workload/${{ matrix.workload }}
+          load: false
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+
+  deploy_aci:
+    name: Deploy example workload to Azure Container Instances
+    needs: acr_push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/jonewworkload'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set image name
+        id: set_image
+        run: |
+          IMAGE_NAME="${{ vars.ACR_NAME }}/${{ github.repository_owner }}/workload-example:sha-${GITHUB_SHA::7}"
+          echo "image=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Azure Container Instances
+        run: |
+          az container create \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name workload-example \
+            --image ${{ steps.set_image.outputs.image }} \
+            --registry-login-server ${{ vars.ACR_NAME }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --cpu 1 --memory 1 \
+            --dns-name-label workload-example-${{ github.run_number }} \
+            --ports 80 \
+            --os-type Linux
+        env:
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+  deploy_newworkload:
+    name: Deploy newworkload to Azure Container Apps
+    needs: acr_push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/jonewworkload'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set image name
+        id: set_image
+        run: |
+          IMAGE_NAME="${{ vars.ACR_NAME }}/${{ github.repository_owner }}/workload-newworkload:sha-${GITHUB_SHA::7}"
+          echo "image=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Check if Container App Environment exists
+        id: check_env
+        run: |
+          ENV_NAME="zerotrust-env"
+          RESOURCE_GROUP="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          
+          # Check if the Container Apps Environment exists
+          if az containerapp env show --name $ENV_NAME --resource-group $RESOURCE_GROUP --query name -o tsv 2>/dev/null; then
+            echo "env_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "env_exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Container App Environment if needed
+        if: steps.check_env.outputs.env_exists != 'true'
+        run: |
+          az containerapp env create \
+            --name zerotrust-env \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --location eastus
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp create \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name newworkload \
+            --environment zerotrust-env \
+            --image ${{ steps.set_image.outputs.image }} \
+            --registry-server ${{ vars.ACR_NAME }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --ingress external \
+            --target-port 80 \
+            --min-replicas 1 \
+            --max-replicas 3 \
+            --cpu 0.5 \
+            --memory 1.0Gi \
+            --env-vars "NODE_ENV=production"
+
+      - name: Get Container App URL
+        id: get_url
+        run: |
+          URL=$(az containerapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name newworkload \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          
+          echo "Container App deployed to: https://$URL"
+          echo "app_url=https://$URL" >> $GITHUB_OUTPUT
