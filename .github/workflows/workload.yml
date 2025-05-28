@@ -232,3 +232,75 @@ jobs:
             --os-type Linux
         env:
           AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+  deploy_newworkload:
+    name: Deploy newworkload to Azure Container Apps
+    needs: acr_push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set image name
+        id: set_image
+        run: |
+          IMAGE_NAME="${{ vars.ACR_NAME }}/${{ github.repository_owner }}/workload-newworkload:sha-${GITHUB_SHA::7}"
+          echo "image=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Check if Container App Environment exists
+        id: check_env
+        run: |
+          ENV_NAME="zerotrust-env"
+          RESOURCE_GROUP="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          
+          # Check if the Container Apps Environment exists
+          if az containerapp env show --name $ENV_NAME --resource-group $RESOURCE_GROUP --query name -o tsv 2>/dev/null; then
+            echo "env_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "env_exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Container App Environment if needed
+        if: steps.check_env.outputs.env_exists != 'true'
+        run: |
+          az containerapp env create \
+            --name zerotrust-env \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --location eastus
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp create \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name newworkload \
+            --environment zerotrust-env \
+            --image ${{ steps.set_image.outputs.image }} \
+            --registry-server ${{ vars.ACR_NAME }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --ingress external \
+            --target-port 80 \
+            --min-replicas 1 \
+            --max-replicas 3 \
+            --cpu 0.5 \
+            --memory 1.0Gi \
+            --env-vars "NODE_ENV=production"
+
+      - name: Get Container App URL
+        id: get_url
+        run: |
+          URL=$(az containerapp show \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name newworkload \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          
+          echo "Container App deployed to: https://$URL"
+          echo "app_url=https://$URL" >> $GITHUB_OUTPUT
