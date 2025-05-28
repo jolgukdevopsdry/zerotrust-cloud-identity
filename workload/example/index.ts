@@ -6,7 +6,7 @@ import passport from 'passport'
 import { BearerStrategy } from 'passport-azure-ad'
 
 // Extend Express.User type to include id, name, roles, and scope
-import '../../types/express'
+import './types/express.d.ts'
 
 // Define types for workload configuration
 export interface Workload {
@@ -29,25 +29,29 @@ interface ProviderMap {
 }
 
 // Azure AD config (use environment variables for secrets)
-const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || ''
-const AZURE_TENANT_ID = process.env.AZURE_TENANT_ID || ''
+const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || 'test-client-id'
+const AZURE_TENANT_ID = process.env.AZURE_TENANT_ID || 'test-tenant-id'
 const AZURE_AUDIENCE = process.env.AZURE_AUDIENCE || AZURE_CLIENT_ID
 const AZURE_ISSUER = `https://sts.windows.net/${AZURE_TENANT_ID}/`
 
 // Configure BearerStrategy for Azure AD JWT validation
-passport.use(new BearerStrategy({
-  identityMetadata: `https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0/.well-known/openid-configuration`,
-  clientID: AZURE_CLIENT_ID,
-  audience: AZURE_AUDIENCE,
-  issuer: AZURE_ISSUER,
-  validateIssuer: true,
-  passReqToCallback: false,
-  loggingLevel: 'warn',
-  scope: []
-}, (token: any, done: any) => {
-  // You can add custom validation here if needed
-  return done(null, token)
-}))
+try {
+  passport.use(new BearerStrategy({
+    identityMetadata: `https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0/.well-known/openid-configuration`,
+    clientID: AZURE_CLIENT_ID,
+    audience: AZURE_AUDIENCE,
+    issuer: AZURE_ISSUER,
+    validateIssuer: true,
+    passReqToCallback: false,
+    loggingLevel: 'warn',
+    scope: []
+  }, (token: any, done: any) => {
+    // You can add custom validation here if needed
+    return done(null, token)
+  }))
+} catch (error) {
+  console.error('Error configuring BearerStrategy:', error)
+}
 
 // Express middleware for Azure AD authentication
 function authenticateAzureAD(req: Request, res: Response, next: any) {
@@ -93,6 +97,9 @@ export let hostsConfig: HostsConfig = {}
 // Define server variable to export for testing
 let server: any
 
+// Make sure to export the app and server for testing
+export { app, server }
+
 // Define providers for different types of workloads
 export const Providers: ProviderMap = {
   example: async (req: Request, res: Response) => {
@@ -131,9 +138,7 @@ export async function forwardRequest(
     }
 
     // Remove the workload name from the path
-    const remainingPath = pathParts.slice(1).join('/');
-
-    // Construct the target URL
+    const remainingPath = pathParts.slice(1).join('/');    // Construct the target URL
     let targetUrl = `https://${workload.host}${remainingPath ? '/' + remainingPath : ''}`;
 
     // Forward query parameters if they exist
@@ -147,21 +152,23 @@ export async function forwardRequest(
       }
     }
 
-    // //console.log(`Forwarding request to: ${targetUrl}`);    // If user is authenticated, include minimal identity info in headers
-    // const headers = { ...req.headers as any, host: workload.host };
-    // if (req.user) {
-    //   headers['x-identity-id'] = req.user.id;
-    //   headers['x-identity-name'] = req.user.name || '';
-    // }
-    // // Make the request to the target host using axios.request for consistency
-    // const response = await axios.request({
-    //   method: req.method || 'GET',
-    //   url: targetUrl,
-    //   headers: headers,
-    //   data: ['POST', 'PUT', 'PATCH'].includes(req.method?.toUpperCase() || '') ? req.body : undefined
-    // });
+    //console.log(`Forwarding request to: ${targetUrl}`);
+    // If user is authenticated, include minimal identity info in headers
+    const headers = { ...req.headers as any, host: workload.host };
+    if (req.user) {
+      headers['x-identity-id'] = req.user.id;
+      headers['x-identity-name'] = req.user.name || '';
+    }
+    // Make the request to the target host using axios.request for consistency
+    const response = await axios.request({
+      method: req.method || 'GET',
+      url: targetUrl,
+      headers: headers,
+      data: ['POST', 'PUT', 'PATCH'].includes(req.method?.toUpperCase() || '') ? req.body : undefined
+    });
 
     // Forward the response back to the client
+    res.status(response.status).send(response.data);
     // res.status(response.status).send(response.data);
   } catch (error) {
     console.error('Error forwarding request:', error);
@@ -196,12 +203,14 @@ const getUserAndHistory = async (req: Request, _res: Response) => {
     return {
       user: userObj.name || "authenticated user",
       authenticated: true,
-      lastAccess: new Date().toISOString()
+      lastAccess: new Date().toISOString(),
+      history: ['insert identity history0 here', 'insert identity history1 here']
     }
   }
   return {
-    user: "unauthenticated",
-    authenticated: false
+    user: "unknown user",
+    authenticated: false,
+    history: ['insert identity history0 here', 'insert identity history1 here']
   }
 }
 
@@ -239,8 +248,7 @@ fetchConfig()
     // Start the server
     server = app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`)
-    })
-  })
+    })  })
 
 // Export the app for testing
 export default app
