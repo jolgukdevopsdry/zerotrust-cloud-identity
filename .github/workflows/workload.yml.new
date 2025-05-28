@@ -1,0 +1,183 @@
+name: Workload CI
+
+on:
+  push:
+    branches: [ main, jonewworkload ]
+  pull_request:
+    branches: [ main, jonewworkload ]
+
+permissions:
+  contents: read
+
+jobs:
+  build_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: workload/example/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: workload/example
+      
+      # TODO: Need to fix coverage level before enabling tests
+      # - name: Run tests
+      #   run: npm test
+      #   working-directory: workload/example
+
+  acr_push:
+    name: Build and Push to ACR
+    needs: build_test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          audience: api://AzureADTokenExchange
+      
+      - name: Build and push example workload image
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ vars.ACR_NAME }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      
+      - name: Build and push example workload
+        run: |
+          docker build -t ${{ vars.ACR_NAME }}/example:${{ github.sha }} workload/example
+          docker push ${{ vars.ACR_NAME }}/example:${{ github.sha }}
+      
+      - name: Build and push newworkload
+        run: |
+          # Create Dockerfile for newworkload
+          cat > workload/newworkload/Dockerfile << 'EOF'
+          FROM cgr.dev/chainguard/node
+          ENV NODE_ENV=production
+          ENV PORT=8080
+          
+          WORKDIR /app
+          
+          COPY --chown=node:node ["package.json", "./"]
+          RUN npm install
+          
+          COPY --chown=node:node ["server.js", "./"]
+          COPY --chown=node:node ["app", "./app"]
+          
+          # Expose the default port
+          EXPOSE ${PORT}
+          
+          CMD [ "server.js" ]
+          EOF
+          
+          # Build and push the new workload
+          docker build -t ${{ vars.ACR_NAME }}/newworkload:${{ github.sha }} -f workload/newworkload/Dockerfile workload/newworkload/ms-identity-javascript-v2-master
+          docker push ${{ vars.ACR_NAME }}/newworkload:${{ github.sha }}
+
+  deploy_aci:
+    name: Deploy example workload to Azure Container Instances
+    needs: acr_push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/jonewworkload'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          audience: api://AzureADTokenExchange
+      
+      - name: Check environment
+        run: |
+          echo "Deployment to ACI for commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref }}"
+      
+      - name: Deploy to Azure Container Instances
+        uses: azure/aci-deploy@v1
+        with:
+          resource-group: ${{ vars.RESOURCE_GROUP }}
+          dns-name-label: example-${{ github.sha }}
+          image: ${{ vars.ACR_NAME }}/example:${{ github.sha }}
+          registry-login-server: ${{ vars.ACR_NAME }}
+          registry-username: ${{ secrets.ACR_USERNAME }}
+          registry-password: ${{ secrets.ACR_PASSWORD }}
+          name: example-container
+          location: 'eastus'
+          environment-variables: AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}
+          ports: 8080
+          cpu: 1
+          memory: 1.5
+
+  deploy_newworkload:
+    name: Deploy newworkload to Azure Container Apps
+    needs: acr_push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/jonewworkload'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          audience: api://AzureADTokenExchange
+      
+      - name: Check environment
+        run: |
+          echo "Deployment to Azure Container Apps for commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref }}"
+      
+      - name: Create Container App Environment if it doesn't exist
+        run: |
+          if ! az containerapp env show --name ca-env-newworkload --resource-group ${{ vars.RESOURCE_GROUP }} &> /dev/null; then
+            echo "Creating Container App Environment..."
+            az containerapp env create \
+              --name ca-env-newworkload \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --location eastus
+          else
+            echo "Container App Environment already exists."
+          fi
+      
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp create \
+            --name newworkload \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --environment ca-env-newworkload \
+            --image ${{ vars.ACR_NAME }}/newworkload:${{ github.sha }} \
+            --registry-server ${{ vars.ACR_NAME }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --target-port 8080 \
+            --ingress external \
+            --cpu 0.5 \
+            --memory 1.0Gi \
+            --min-replicas 1 \
+            --max-replicas 3 \
+            --env-vars AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Output Container App URL
+        run: |
+          echo "Container App URL: $(az containerapp show --name newworkload --resource-group ${{ vars.RESOURCE_GROUP }} --query properties.configuration.ingress.fqdn -o tsv)"
