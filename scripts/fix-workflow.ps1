@@ -1,3 +1,7 @@
+#!/usr/bin/env pwsh
+# This script fixes the GitHub Actions workflow file
+
+$workflowYaml = @"
 name: Workload CI
 
 on:
@@ -45,22 +49,22 @@ jobs:
       - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: `${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: `${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: `${{ secrets.AZURE_SUBSCRIPTION_ID }}
           audience: api://AzureADTokenExchange
       
       - name: Build and push example workload image
         uses: azure/docker-login@v1
         with:
-          login-server: ${{ vars.ACR_NAME }}.azurecr.io
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          login-server: `${{ vars.ACR_NAME }}.azurecr.io
+          username: `${{ secrets.ACR_USERNAME }}
+          password: `${{ secrets.ACR_PASSWORD }}
       
       - name: Build and push example workload
         run: |
-          docker build -t ${{ vars.ACR_NAME }}.azurecr.io/example:${{ github.sha }} workload/example
-          docker push ${{ vars.ACR_NAME }}.azurecr.io/example:${{ github.sha }}
+          docker build -t `${{ vars.ACR_NAME }}.azurecr.io/example:`${{ github.sha }} workload/example
+          docker push `${{ vars.ACR_NAME }}.azurecr.io/example:`${{ github.sha }}
       
       - name: Build and push newworkload
         run: |
@@ -79,14 +83,14 @@ jobs:
           COPY --chown=node:node ["app", "./app"]
           
           # Expose the default port
-          EXPOSE ${PORT}
+          EXPOSE `${PORT}
           
           CMD [ "server.js" ]
           EOF
           
           # Build and push the new workload
-          docker build -t ${{ vars.ACR_NAME }}.azurecr.io/newworkload:${{ github.sha }} -f workload/newworkload/Dockerfile workload/newworkload/ms-identity-javascript-v2-master
-          docker push ${{ vars.ACR_NAME }}.azurecr.io/newworkload:${{ github.sha }}
+          docker build -t `${{ vars.ACR_NAME }}.azurecr.io/newworkload:`${{ github.sha }} -f workload/newworkload/Dockerfile workload/newworkload/ms-identity-javascript-v2-master
+          docker push `${{ vars.ACR_NAME }}.azurecr.io/newworkload:`${{ github.sha }}
 
   deploy_aci:
     name: Deploy example workload to Azure Container Instances
@@ -100,28 +104,28 @@ jobs:
       - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: `${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: `${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: `${{ secrets.AZURE_SUBSCRIPTION_ID }}
           audience: api://AzureADTokenExchange
       
       - name: Check environment
         run: |
-          echo "Deployment to ACI for commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref }}"
+          echo "Deployment to ACI for commit: `${{ github.sha }}"
+          echo "Branch: `${{ github.ref }}"
       
       - name: Deploy to Azure Container Instances
         uses: azure/aci-deploy@v1
         with:
-          resource-group: ${{ vars.RESOURCE_GROUP }}
-          dns-name-label: example-${{ github.sha }}
-          image: ${{ vars.ACR_NAME }}.azurecr.io/example:${{ github.sha }}
-          registry-login-server: ${{ vars.ACR_NAME }}.azurecr.io
-          registry-username: ${{ secrets.ACR_USERNAME }}
-          registry-password: ${{ secrets.ACR_PASSWORD }}
+          resource-group: `${{ vars.RESOURCE_GROUP }}
+          dns-name-label: example-`${{ github.sha }}
+          image: `${{ vars.ACR_NAME }}.azurecr.io/example:`${{ github.sha }}
+          registry-login-server: `${{ vars.ACR_NAME }}.azurecr.io
+          registry-username: `${{ secrets.ACR_USERNAME }}
+          registry-password: `${{ secrets.ACR_PASSWORD }}
           name: example-container
           location: 'eastus'
-          environment-variables: AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}
+          environment-variables: AZURE_CLIENT_ID=`${{ secrets.AZURE_CLIENT_ID }} AZURE_TENANT_ID=`${{ secrets.AZURE_TENANT_ID }}
           ports: 8080
           cpu: 1
           memory: 1.5
@@ -138,23 +142,23 @@ jobs:
       - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: `${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: `${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: `${{ secrets.AZURE_SUBSCRIPTION_ID }}
           audience: api://AzureADTokenExchange
       
       - name: Check environment
         run: |
-          echo "Deployment to Azure Container Apps for commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref }}"
+          echo "Deployment to Azure Container Apps for commit: `${{ github.sha }}"
+          echo "Branch: `${{ github.ref }}"
       
       - name: Create Container App Environment if it doesn't exist
         run: |
-          if ! az containerapp env show --name ca-env-newworkload --resource-group ${{ vars.RESOURCE_GROUP }} &> /dev/null; then
+          if ! az containerapp env show --name ca-env-newworkload --resource-group `${{ vars.RESOURCE_GROUP }} &> /dev/null; then
             echo "Creating Container App Environment..."
             az containerapp env create \
               --name ca-env-newworkload \
-              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --resource-group `${{ vars.RESOURCE_GROUP }} \
               --location eastus
           else
             echo "Container App Environment already exists."
@@ -164,20 +168,30 @@ jobs:
         run: |
           az containerapp create \
             --name newworkload \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --resource-group `${{ vars.RESOURCE_GROUP }} \
             --environment ca-env-newworkload \
-            --image ${{ vars.ACR_NAME }}.azurecr.io/newworkload:${{ github.sha }} \
-            --registry-server ${{ vars.ACR_NAME }}.azurecr.io \
-            --registry-username ${{ secrets.ACR_USERNAME }} \
-            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --image `${{ vars.ACR_NAME }}.azurecr.io/newworkload:`${{ github.sha }} \
+            --registry-server `${{ vars.ACR_NAME }}.azurecr.io \
+            --registry-username `${{ secrets.ACR_USERNAME }} \
+            --registry-password `${{ secrets.ACR_PASSWORD }} \
             --target-port 8080 \
             --ingress external \
             --cpu 0.5 \
             --memory 1.0Gi \
             --min-replicas 1 \
             --max-replicas 3 \
-            --env-vars AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}
+            --env-vars AZURE_CLIENT_ID=`${{ secrets.AZURE_CLIENT_ID }} AZURE_TENANT_ID=`${{ secrets.AZURE_TENANT_ID }}
 
       - name: Output Container App URL
         run: |
-          echo "Container App URL: $(az containerapp show --name newworkload --resource-group ${{ vars.RESOURCE_GROUP }} --query properties.configuration.ingress.fqdn -o tsv)"
+          echo "Container App URL: `$(az containerapp show --name newworkload --resource-group `${{ vars.RESOURCE_GROUP }} --query properties.configuration.ingress.fqdn -o tsv)"
+"@
+
+# Remove backticks from the YAML
+$workflowYaml = $workflowYaml -replace '`', ''
+
+# Write the YAML to the workflow file
+$workflowPath = Join-Path $PSScriptRoot "..\\.github\\workflows\\workload.yml"
+Set-Content -Path $workflowPath -Value $workflowYaml -Encoding UTF8
+
+Write-Host "Workflow file has been fixed and saved to $workflowPath"
