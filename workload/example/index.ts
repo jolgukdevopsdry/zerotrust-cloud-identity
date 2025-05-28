@@ -191,8 +191,10 @@ export function processWorkloads(config: HostsConfig, expressApp: any) {
 const getUserAndHistory = async (req: Request, _res: Response) => {
   // Only return minimal user information, not token history
   if (req.user) {
+    // Using type assertion to fix TypeScript error
+    const userObj = req.user as { name?: string };
     return {
-      user: req.user.name || "authenticated user",
+      user: userObj.name || "authenticated user",
       authenticated: true,
       lastAccess: new Date().toISOString()
     }
