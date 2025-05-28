@@ -11,7 +11,7 @@ description: "A simple JavaScript Single-Page Application using the Auth Code fl
 urlFragment: "ms-identity-javascript-v2"
 ---
 
-# Vanilla JavaScript Single-page Application secured with MSAL.js
+# Vanilla JavaScript Single-page Application secured with MSAL.js j
 
 A simple vanilla JavaScript single-page application which demonstrates how to configure [MSAL.JS 2.x](https://www.npmjs.com/package/@azure/msal-browser) to login, logout, and acquire an access token for a protected resource such as the **Microsoft Graph API**. This version of the MSAL.js library uses the [authorization code flow with PKCE](https://docs.microsoft.com/azure/active-directory/develop/v2-oauth2-auth-code-flow).
 
