@@ -4,8 +4,17 @@ import axios from 'axios';
 import request from 'supertest';
 import { Request, Response } from 'express';
 
-// Mock axios
+// Mock modules
 jest.mock('axios');
+jest.mock('passport-azure-ad');
+jest.mock('passport', () => ({
+  initialize: jest.fn().mockReturnValue((req: any, res: any, next: any) => next()),
+  authenticate: jest.fn().mockReturnValue((req: any, res: any, next: any) => {
+    req.user = { id: 'test-id', name: 'Test User' };
+    next();
+  })
+}));
+
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 // Mock console methods to avoid cluttering test output
