@@ -13,7 +13,7 @@ ENV PORT=3000
 COPY package*.json ./
 
 # Install production dependencies
-RUN npm ci --only=production
+RUN npm install
 
 # Copy application files
 COPY server.js ./
