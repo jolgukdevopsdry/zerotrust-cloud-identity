@@ -196,3 +196,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
+
+      - name: Build and deploy Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+            acrName: babcockcontainerregistry
+            containerAppName: zerotrust-workload-app
+            resourceGroup: zerotrust-rg
+            imageToDeploy: babcockcontainerregistry.azurecr.io/jolgukdevopsdry/workload-ms-identity-javascript-v2-master:${{ steps.meta.outputs.tags }}
