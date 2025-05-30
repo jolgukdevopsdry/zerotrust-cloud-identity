@@ -10,9 +10,9 @@
 
 // Storage account configuration
 const storageConfig = {
-    storageAccountName: "gdsblobstoragedemo",
-    containerName: "blobcontainer",
-    storageUrl: "https://gdsblobstoragedemo.blob.core.windows.net"
+    storageAccountName: "zerotrustsa",
+    containerName: "bengal",
+    storageUrl: "https://zerotrustsa.blob.core.windows.net"
 };
 
 /**
