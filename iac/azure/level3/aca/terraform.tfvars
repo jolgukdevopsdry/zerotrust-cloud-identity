@@ -12,3 +12,6 @@ resource_group_name = "zerotrust-acr-rg"
 
 # Resource Group Location
 resource_group_location = "uksouth"
+
+# Registry name
+registry_name = ""
