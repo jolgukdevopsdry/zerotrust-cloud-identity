@@ -29,8 +29,20 @@ resource "azurerm_user_assigned_identity" "uami" {
   location            = azurerm_resource_group.rg.location
 }
 
+data "azurerm_container_app_environment" "existing" {
+  name                = var.container_app_env_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.uami.id]
+  }
+}
+
+
 resource "azurerm_storage_account" "storage" {
-  name                     = var.blobstorageaccountname
+  name                     = var.blob_storage_account_name
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
