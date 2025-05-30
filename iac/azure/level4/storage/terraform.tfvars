@@ -14,7 +14,7 @@ resource_group_name = "zerotrust-rg"
 resource_group_location = "uksouth"
 
 # azure container app name
-container_registry_name = "xxxxxxx"
+container_app_name = "xxxxxxx"
 
 # storage account for test blobs
 blobstorageaccountname = "jjzerotruststore"
