@@ -213,4 +213,4 @@ jobs:
             acrName: babcockcontainerregistry
             containerAppName: zerotrust-workload-app
             resourceGroup: zerotrust-rg
-            imageToDeploy: babcockcontainerregistry.azurecr.io/jolgukdevopsdry/workload-ms-identity-javascript-v2-master:${{ steps.meta.outputs.tags }}
+            imageToDeploy: ${{ steps.meta.outputs.tags }}
