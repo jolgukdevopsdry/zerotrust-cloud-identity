@@ -42,7 +42,7 @@ data "azurerm_container_app_environment" "existing" {
 
 
 resource "azurerm_storage_account" "storage" {
-  name                     = var.blobstorageaccountname
+  name                     = var.blob_storage_account_name
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
