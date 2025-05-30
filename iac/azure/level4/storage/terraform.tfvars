@@ -15,3 +15,6 @@ resource_group_location = "uksouth"
 
 # azure container app name
 container_registry_name = "xxxxxxx"
+
+# storage account for test blobs
+blobstorageaccountname = "jjzerotruststore"
