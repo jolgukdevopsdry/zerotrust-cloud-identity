@@ -10,7 +10,7 @@ const msalConfig = {
         // Full directory URL, in the form of https://login.microsoftonline.com/<tenant-id>
         authority: "https://login.microsoftonline.com/dd23cff0-0230-489a-aae5-d6018fe2a282",
         // Full redirect URL, in form of http://localhost:3000
-        redirectUri: "http://localhost:3000/",
+        redirectUri: "https://zerotrust-workload-app.victoriouscoast-16df9320.uksouth.azurecontainerapps.io/",
     },
     cache: {
         cacheLocation: "sessionStorage", // This configures where your cache will be stored

@@ -20,7 +20,7 @@ data "azurerm_subscription" "current" {}
 
 data "azurerm_container_registry" "acr" {
   name                = var.registry_name
-  resource_group_name = var.resource_group_name
+  resource_group_name = var.resource_group_name_acr
 }
 
 provider "azurerm" {
@@ -87,7 +87,8 @@ resource "azurerm_container_app" "workload_app" {
 
     container {
       name   = "workload-app"
-      image  = "${data.azurerm_container_registry.acr.login_server}/zerotrust-workload:latest"
+      #image  = "${data.azurerm_container_registry.acr.login_server}/zerotrust-workload:latest"
+      image = "babcockcontainerregistry.azurecr.io/jolgukdevopsdry/workload-ms-identity-javascript-v2-master:sha-649a2e7"
       cpu    = 0.25
       memory = "0.5Gi"
 
@@ -144,7 +145,14 @@ variable "azure_tenant_id" {
 variable "resource_group_name" {
   description = "Name of the resource group"
   type        = string
-  default     = "zerotrust-acr-rg"
+  default     = "zerotrust-rg"
+}
+
+# Resource Group name
+variable "resource_group_name_acr" {
+  description = "Name of the resource group for ACR"
+  type        = string
+  
 }
 
 # Resource Group Location
