@@ -10,11 +10,16 @@
   "license": "MIT",
   "description": "",
   "dependencies": {
-    "@cucumber/cucumber": "^11.2.0",
-    "@playwright/browser-chromium": "^1.51.1",
-    "@types/node": "^22.13.11",
-    "playwright": "^1.51.1",
+    "@cucumber/cucumber": "^11.2.0",    
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.2",
+    "@types/node": "^22.13.11",
+    "@playwright/browser-chromium": "^1.51.1",    
+    "playwright": "^1.51.1",
+    "chai": "^4.3.7"
   }
 }
+
