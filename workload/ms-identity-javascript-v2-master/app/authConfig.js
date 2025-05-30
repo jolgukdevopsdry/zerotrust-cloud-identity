@@ -6,9 +6,9 @@
 const msalConfig = {
     auth: {
         // 'Application (client) ID' of app registration in Azure portal - this value is a GUID
-        clientId: "52b60790-ae1b-4003-9f4b-9792aab0722e",
+        clientId: "6eb16b56-4c3c-4a6c-9bf8-c457d6c5be30",
         // Full directory URL, in the form of https://login.microsoftonline.com/<tenant-id>
-        authority: "https://login.microsoftonline.com/dd23cff0-0230-489a-aae5-d6018fe2a282",
+        authority: "https://login.microsoftonline.com/9a3c1480-4d43-4b5b-9536-8325332c47c5",
         // Full redirect URL, in form of http://localhost:3000
         redirectUri: "http://localhost:3000/",
     },
@@ -48,7 +48,7 @@ const msalConfig = {
  * https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#openid-connect-scopes
  */
 const loginRequest = {
-    scopes: ["User.Read"]
+    scopes: ["User.Read", "Mail.Read"]
 };
 
 /**
@@ -58,4 +58,12 @@ const loginRequest = {
 const tokenRequest = {
     scopes: ["User.Read", "Mail.Read"],
     forceRefresh: false // Set this to "true" to skip a cached token and go to the server to get a new token
+};
+
+/**
+ * Add here the scopes to request when obtaining an access token for Azure Storage
+ */
+const storageTokenRequest = {
+    scopes: ["https://storage.azure.com/.default"],
+    forceRefresh: false
 };

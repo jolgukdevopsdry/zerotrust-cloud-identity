@@ -42,6 +42,9 @@
           <br>
           <br>
           <button class="btn btn-primary" id="readMail" onclick="readMail()">Read Mails</button>
+          <br>
+          <br>
+          <button class="btn btn-primary" id="listBlobs" onclick="listBlobs()">List Storage Files</button>
         </div>
       </div>
     </div>
@@ -56,6 +59,22 @@
       </div>
     </div>
   </div>
+  
+  <!-- Blob Storage Grid -->
+  <div class="container mt-4" id="blob-grid-container" style="display:none">
+    <h5>Files in Blob Storage</h5>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Blob Name</th>
+          <th>Size (bytes)</th>
+        </tr>
+      </thead>
+      <tbody id="blob-grid-body">
+      </tbody>
+    </table>
+  </div>
+  
   <br>
   <br>
 
@@ -69,12 +88,12 @@
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
     integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
     crossorigin="anonymous"></script>
-
+  
   <!-- importing app scripts (load order is important) -->
   <script type="text/javascript" src="./authConfig.js"></script>
   <script type="text/javascript" src="./graphConfig.js"></script>
   <script type="text/javascript" src="./ui.js"></script>
-
+  <script type="text/javascript" src="./blobStorage.js"></script>
   <script type="text/javascript" src="./authRedirect.js"></script>
   <!-- <script type="text/javascript" src="./authPopup.js"></script> -->
   <!-- Comment: Now using redirect flow instead of popup flow -->
